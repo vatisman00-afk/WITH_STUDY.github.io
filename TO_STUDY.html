@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STUDY LOG</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:14px;background:#fff1e7;font-family:Arial,"Noto Sans KR",sans-serif}
+.wrap{max-width:560px;margin:auto}
+.panel{background:#fff;border-radius:18px;padding:14px;margin-bottom:14px;box-shadow:0 5px 18px #00000012}
+input{width:100%;padding:14px 12px;border:1px solid #e3d7da;border-radius:11px;font-size:16px;margin:4px 0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}
+button{border:0;border-radius:11px;padding:12px 8px;font-weight:800;background:#ee91a1;color:#fff;cursor:pointer}
+.photo{background:#f3b8c2;color:#333;font-size:12px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.gray{background:#eee;color:#444}
+.help{font-size:12px;color:#777;line-height:1.5;margin-top:9px}
+canvas{width:100%;height:auto;display:block;border-radius:30px;box-shadow:0 8px 24px #00000018}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="panel">
+<input id="name" value="이*윤의 STUDY LOG" placeholder="이름 STUDY LOG">
+<input id="date" type="date">
+<input id="m" placeholder="Morning 문구 (선택)">
+<input id="a" placeholder="Afternoon 문구 (선택)">
+<input id="n" placeholder="Night 문구 (선택)">
+<div class="grid">
+<button class="photo" onclick="pick(0)">📷 아침 사진</button>
+<button class="photo" onclick="pick(1)">📷 점심 사진</button>
+<button class="photo" onclick="pick(2)">📷 저녁 사진</button>
+</div>
+<div class="actions">
+<button onclick="savePNG()">⬇️ PNG 저장</button>
+<button class="gray" onclick="resetAll()">초기화</button>
+</div>
+<div class="help">사진 버튼을 눌러 각 칸에 사진을 넣으세요. 날짜를 고르면 위에 #날짜가 표시됩니다. PNG 저장은 완성된 카드만 저장합니다.</div>
+</div>
+<canvas id="c" width="1080" height="1920"></canvas>
+<input id="f0" class="hidden" type="file" accept="image/*">
+<input id="f1" class="hidden" type="file" accept="image/*">
+<input id="f2" class="hidden" type="file" accept="image/*">
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d',{alpha:false});
+const pics=[null,null,null],fs=[0,1,2].map(i=>document.getElementById('f'+i));
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+function txt(t,x,y,s,fill='#fff',bold=true){
+  ctx.font=(bold?'700 ':'500 ')+s+'px Arial,Helvetica,sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=fill;
+  ctx.shadowColor='#0008';ctx.shadowBlur=5;ctx.shadowOffsetY=2;ctx.fillText(t,x,y);
+  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+}
+function cover(im,x,y,w,h,r){
+  ctx.save();rr(x,y,w,h,r);ctx.clip();
+  const k=Math.max(w/im.width,h/im.height),dw=im.width*k,dh=im.height*k;
+  ctx.drawImage(im,x+(w-dw)/2,y+(h-dh)/2,dw,dh);
+  ctx.fillStyle='#0007';ctx.fillRect(x,y,w,h);ctx.restore();
+}
+function dateText(v){if(!v)return '';const [y,m,d]=v.split('-');return '#'+y+'.'+m+'.'+d}
+function drawWrapped(s,cx,cy,size,maxWidth,lineHeight){
+  const words=s.split(/\s+/),lines=[];let line='';
+  ctx.font='700 '+size+'px Arial,Helvetica,sans-serif';
+  for(const word of words){
+    const test=line?line+' '+word:word;
+    if(ctx.measureText(test).width<=maxWidth)line=test;
+    else{if(line)lines.push(line);line=word}
+  }
+  if(line)lines.push(line);
+  const start=cy-(lines.length-1)*lineHeight/2;
+  lines.slice(0,3).forEach((ln,i)=>txt(ln,cx,start+i*lineHeight,size,'#fff',true));
+}
+function draw(){
+  const W=1080,H=1920;
+  ctx.fillStyle='#fff1e7';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#ed91a11f';ctx.lineWidth=2;
+  // Keep the original grid cell size and let the grid continue across the whole background.
+  for(let x=0;x<W;x+=54){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+  for(let y=0;y<H;y+=54){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+  // Compact main frame ratio restored.
+  const ox=180,oy=180,ow=720,oh=1250;
+  rr(ox,oy,ow,oh,58);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#ee8fa0';ctx.lineWidth=6;ctx.stroke();
+
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#292929';
+  ctx.font='800 40px Arial,"Noto Sans KR",sans-serif';
+  ctx.fillText(document.getElementById('name').value||'STUDY LOG',220,250);
+  ctx.fillStyle='#777';ctx.font='800 42px Arial,"Noto Sans KR",sans-serif';
+  ctx.fillText(dateText(document.getElementById('date').value),223,305);
+
+  ctx.fillStyle='#e84b5b';ctx.font='126px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('♥',795,270);
+
+  const x=220,w=640,h=300,r=42,ys=[350,700,1050];
+  const rows=[
+    ['Morning','00:00 - 11:59',document.getElementById('m').value],
+    ['Afternoon','12:00 - 17:59',document.getElementById('a').value],
+    ['Night','18:00 - 23:59',document.getElementById('n').value]
+  ];
+  ys.forEach((y,i)=>{
+    if(pics[i])cover(pics[i],x,y,w,h,r);else{rr(x,y,w,h,r);ctx.fillStyle='#777';ctx.fill()}
+    txt(rows[i][0],540,y+62,58);
+    txt(rows[i][1],540,y+137,43);
+    if(rows[i][2])drawWrapped(rows[i][2],540,y+245,32,560,40);
+    else txt('사진을 넣어주세요',540,y+245,25,'#fff',false);
+  });
+}
+function pick(i){fs[i].click()}
+fs.forEach((f,i)=>f.addEventListener('change',()=>{
+  const file=f.files&&f.files[0];if(!file)return;
+  const r=new FileReader();r.onload=e=>{const im=new Image();im.onload=()=>{pics[i]=im;draw()};im.src=e.target.result};r.readAsDataURL(file);
+}));
+['name','date','m','a','n'].forEach(id=>document.getElementById(id).addEventListener('input',draw));
+async function savePNG(){
+  draw();
+  const blob=await new Promise(resolve=>c.toBlob(resolve,'image/png'));
+  if(!blob){alert('이미지 생성에 실패했어요.');return}
+  const filename='study-log-'+(document.getElementById('date').value||'today')+'.png';
+  try{
+    const file=new File([blob],filename,{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'STUDY LOG'});return;
+    }
+  }catch(e){}
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.style.position='fixed';a.style.left='-10000px';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},30000);
+}
+function resetAll(){pics.fill(null);fs.forEach(f=>f.value='');document.getElementById('date').value='';document.getElementById('m').value='';document.getElementById('a').value='';document.getElementById('n').value='';draw()}
+draw();
+</script>
+</body>
+</html>
